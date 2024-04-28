@@ -239,7 +239,7 @@ def getSamples(chandle, inputs, range, trigger, window):
                 break
             except BoundaryError:
                 cur_range += 1
-                print(f"Signal out of range, increasing max range to +- {rangeMapInv[cur_range]} V")
+                print(f"Signal out of range, increasing max range to +- {rangeMapInv[cur_range]} V\n")
         times.append(t)
         data_samples.append(data)
 
