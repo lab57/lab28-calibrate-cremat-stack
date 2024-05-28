@@ -124,22 +124,25 @@ def take_and_plot_sample(chandle, channel, trigger_mv, window, range):
     print(f"Sampling Data. Channel={channel}, trigger={trigger_mv}mV, window={window}, range={range}")
     # Set up the specified channel
     enabled = 1
-    coupling_type = ps.PS3000A_COUPLING["PS3000A_DC"]
+    coupling_type = ps.PS3000A_COUPLING["PS3000A_AC"]
     #voltage_range = ps.PS3000A_RANGE["PS3000A_100MV"]  # Adjust this based on your needs, corresponds to ±10V
     voltage_range = range
-    analogue_offset = -.04
+    analogue_offset = 0#-.04
     status_set_channel = ps.ps3000aSetChannel(chandle, channel, enabled, coupling_type, voltage_range, analogue_offset)
+    TRIGGER_CHANNEL = 3 #channel D
+    status_set_channel2 = ps.ps3000aSetChannel(chandle, TRIGGER_CHANNEL, enabled, coupling_type, ps.PS3000A_RANGE["PS3000A_20MV"], analogue_offset)
+
     assert_pico_ok(status_set_channel)
 
     # Prepare the trigger using mV2adc for precise ADC threshold setting
     max_adc = ctypes.c_int16()
     ps.ps3000aMaximumValue(chandle, ctypes.byref(max_adc))
     threshold_adc = mV2adc(trigger_mv, voltage_range, max_adc)
-
+    threshold_adc = mV2adc(0, voltage_range, max_adc)
     # Set up trigger
-    trigger_direction = 2  # PS3000A_RISING
+    trigger_direction = 3  # PS3000A_FALLING
     auto_trigger_ms = 1000
-    status_set_trigger = ps.ps3000aSetSimpleTrigger(chandle, 1, channel, threshold_adc, trigger_direction, 0, auto_trigger_ms)
+    status_set_trigger = ps.ps3000aSetSimpleTrigger(chandle, 1, TRIGGER_CHANNEL, threshold_adc, trigger_direction, 0, auto_trigger_ms)
     assert_pico_ok(status_set_trigger)
     
 
@@ -203,13 +206,13 @@ def plotSample(time, data_mv):
 
 
 
-def takeDataVal(chandle, siggen_amp, range = rangeMap[0.1], trigger=20, window=1e-3):
+def takeDataVal(chandle, siggen_amp, range = rangeMap[0.1], trigger=20, window=1e-3, channel=2):
     """
     Take data and validate it doesnt max out the range
     """
     set_square_wave(chandle, 90, siggen_amp)
     time.sleep(.1)
-    t, data = take_and_plot_sample(chandle,2, trigger, window, range)
+    t, data = take_and_plot_sample(chandle, channel, trigger, window, range)
     max_amp = max(data)*1e-3 #convert to volts
     if abs(max_amp - rangeMapInv[range]) < .0001:
         print("Maxed out range")
