@@ -69,9 +69,11 @@ def set_square_wave(chandle, frequency_hz, amplitude_v):
     wave_type = ctypes.c_int16(1)  # PS3000A_SQUARE
     sweep_type = ctypes.c_int32(0) # PS3000A_UP
     trigger_type = ctypes.c_int32(0) # PS3000A_SIGGEN_RISING
-    trigger_source = ctypes.c_int32(0) # P3000A_SIGGEN_NONE
-    
-    status = ps.ps3000aSetSigGenBuiltIn(chandle, offset_voltage_uv, amplitude_uv, wave_type, frequency_hz, frequency_hz, 0, 1, sweep_type, 0, 0, 0, trigger_type, trigger_source, 1)
+    trigger_source = ctypes.c_int32(1)#ctypes.c_int32(0) # P3000A_SIGGEN_NONE
+    shots = 1
+    #frequency_hz = 100000
+    print("a")
+    status = ps.ps3000aSetSigGenBuiltIn(chandle, offset_voltage_uv, amplitude_uv, wave_type, frequency_hz, frequency_hz, 0, 1, sweep_type, 0, shots, 0, trigger_type, trigger_source, 1)
     assert_pico_ok(status)
 
 import ctypes
@@ -124,13 +126,14 @@ def take_and_plot_sample(chandle, channel, trigger_mv, window, range):
     print(f"Sampling Data. Channel={channel}, trigger={trigger_mv}mV, window={window}, range={range}")
     # Set up the specified channel
     enabled = 1
-    coupling_type = ps.PS3000A_COUPLING["PS3000A_AC"]
+    coupling_type = ps.PS3000A_COUPLING["PS3000A_DC"]
     #voltage_range = ps.PS3000A_RANGE["PS3000A_100MV"]  # Adjust this based on your needs, corresponds to ±10V
     voltage_range = range
     analogue_offset = 0#-.04
+    print(f"Enabling channel {channel}")
     status_set_channel = ps.ps3000aSetChannel(chandle, channel, enabled, coupling_type, voltage_range, analogue_offset)
-    TRIGGER_CHANNEL = 3 #channel D
-    status_set_channel2 = ps.ps3000aSetChannel(chandle, TRIGGER_CHANNEL, enabled, coupling_type, ps.PS3000A_RANGE["PS3000A_20MV"], analogue_offset)
+    TRIGGER_CHANNEL = 4 #channel D
+    #status_set_channel2 = ps.ps3000aSetChannel(chandle, 2, enabled, coupling_type, voltage_range, analogue_offset)
 
     assert_pico_ok(status_set_channel)
 
@@ -138,10 +141,10 @@ def take_and_plot_sample(chandle, channel, trigger_mv, window, range):
     max_adc = ctypes.c_int16()
     ps.ps3000aMaximumValue(chandle, ctypes.byref(max_adc))
     threshold_adc = mV2adc(trigger_mv, voltage_range, max_adc)
-    threshold_adc = mV2adc(0, voltage_range, max_adc)
     # Set up trigger
-    trigger_direction = 3  # PS3000A_FALLING
+    trigger_direction = 2  # PS3000A_RISING
     auto_trigger_ms = 1000
+    print(f"Triggering on {TRIGGER_CHANNEL}")
     status_set_trigger = ps.ps3000aSetSimpleTrigger(chandle, 1, TRIGGER_CHANNEL, threshold_adc, trigger_direction, 0, auto_trigger_ms)
     assert_pico_ok(status_set_trigger)
     
@@ -206,7 +209,7 @@ def plotSample(time, data_mv):
 
 
 
-def takeDataVal(chandle, siggen_amp, range = rangeMap[0.1], trigger=20, window=1e-3, channel=2):
+def takeDataVal(chandle, siggen_amp, range = rangeMap[0.1], trigger=20, window=1e-3, channel=3):
     """
     Take data and validate it doesnt max out the range
     """
@@ -239,12 +242,19 @@ def getSamples(chandle, inputs, range, trigger, window):
         while True:
             try:
                 t, data = takeDataVal(chandle, i_v, cur_range, trig_mv, window)
+                if(np.sum(data) < .00001):
+                    raise ValueError
                 break
             except BoundaryError:
                 cur_range += 1
                 print(f"Signal out of range, increasing max range to +- {rangeMapInv[cur_range]} V\n")
+            except ValueError:
+                print("Zero output, retaking")
+
+        
         times.append(t)
         data_samples.append(data)
+
 
     return times, data_samples
     
@@ -254,7 +264,7 @@ from scipy.optimize import curve_fit
 def gauss(x, A, mu, sigma, b):
     return A*np.exp(-(x-mu)**2/(2*sigma**2)) + b
 
-def fitGaussian(time, data, p0=(100, 0, .5,  0)):
+def fitGaussian(time, data, p0=(100, 1.6, .5,  0)):
     ps, cov = curve_fit(gauss, time, data, p0=p0)
     errs = np.sqrt(np.diag(cov))
     return ps, errs
