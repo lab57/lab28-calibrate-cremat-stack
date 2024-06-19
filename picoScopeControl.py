@@ -259,6 +259,7 @@ def getSamples(chandle, inputs, range, trigger, window):
     return times, data_samples
     
 
+
 from scipy.optimize import curve_fit
 
 def gauss(x, A, mu, sigma, b):
@@ -278,6 +279,8 @@ def getGains(times, datas):
         gains.append(ps[0])
         gains_err.append(errs[0])
     return gains, gains_err
+
+
 
         
 if __name__ == "__main__":
