@@ -3,10 +3,10 @@
 // Take a look at the file `template.typ` in the file panel
 // to customize this template and discover how it works.
 #show: project.with(
-  title: "Cremat Charge Sensitive Preamplfier & Shaper 
+  title: "Cremat Charge Sensitive Preamplfier/Shaper 
   Overview & Calibration",
   authors: (
-    (name: "Luc Barrett", email: "labarrett@umass.edu", affiliation: "Kumar Lab 028"),
+    (name: "Luc Barrett", email: "me@lucbarrett.info", affiliation: "Kumar Lab 028"),
   ),
   date: datetime.today().display("[month repr:long] [day], [year]"),
 )
@@ -14,14 +14,14 @@
 #show link: underline
 
 #set heading(numbering: "1.1")
-#outline()
+#outline(indent: 1em)
 #pagebreak()
 
 
 
 = Charge Sensitive Preamplifier
 
-== Function & Purpose
+== Introduction and Purpose
 A Charge Sensitive Preamplifier (CSP) is a device used for detecting electrical pulses from detectors.  A CSP can take in a pulse of current, and in its most basic form, the result is proportional to the integral of charge passing through
 #align(center, 
 grid(
@@ -86,7 +86,8 @@ In the absense of a CR-200X module, as in our case, a jumper wire had to be inst
 #pagebreak()
 
 
-= Calibration
+#set image(width: 50%)
+= Calibration Code
 
 Calibrating a preamp/shaper stack can be done quickly and accurately using the PicoScope and it's python API. Found on the github (#link("https://github.com/lab57/lab28-calibrate-cremat-stack")), there is a jupyter notebook that performs the calibration. Here I'll describe how this works. The instructions for doing it are mostly given in the notebook itself, as it's intended to be self guided.
 
@@ -135,19 +136,44 @@ This runs a short test to make sure the results look as expected. A quick explan
 - trigger sets the threshhold (should be 0)
 - window sets the width of the window, should be 5e-6 generally to match the later calibration
 
+The test output should look something like this
+
+#figure(image("./example_out.png"))
+
+If it looks different, try slightly expanding your time window (in case theres a longer than expected delay) and check your wiring. You may find it easier to use the PicoScope software to debug wiring. (make sure you run the 'close device' cell at the end of the notebook before opening picoscope)
+
 == Run Measurements
 
 
 
-
-This is the main part of the calibration. This will sweep across the voltages defined in `input_vs`, record the output of the shaper for that input, and store it in `datas`. Then it will calibrate the gain (fit a gaussian to it) using `getGains()` and put it in `gains`.
-
-
+This is the main part of the calibration. This will sweep across the voltages defined in `input_vs`, record the output of the shaper for that input, and store it in `datas`. Then it will calibrate the gain (fit a gaussian to it) using `getGains()` and put it in `gains`.  It will show a simple scatter plot of the results so it can be verified it looks as expected.
+#figure(image("./cal_scatter.png"), caption: [Plot of gains. Note it saturates when the output goes past 5V (5000mV)])<scatterout>
+#pagebreak()
 == Plots
 
-Following this, the next cell plots these values and does a linear
+Following this, the next cell plots these values and does a linear fit to extract the overall gain value. 
+
+```python
+indicies = np.where(np.asarray(gains) > 5000)[0]
+saturation_index = indicies[0] if len(indicies) > 0 else len(input_vs)
+```
+An important first step is to find where the output saturates, or becomes nonlinear. This is the maximum output of the device. We don't want to include these in the fit, so we find the index where the output goes above 5V and only perform the fit up to that point.
+
+Following that, the fit is performed and plotted along with the data. See below what might be expected.
+
+#figure(grid(
+  columns: 2,
+  image("../out/out-06-18-2024-1-00.svg", width: 100%),
+  image("../out/out-06-18-2024-1-01.svg", width: 100%),
+  image("../out/out-06-18-2024-1-11.svg", width: 100%)
+), caption: [Example calibration data from 06/17/2024])
+
+Notice that for each enabled gain switch, the gain is approximately 10x higher as expected.
 
 
+Our error is dominated by the error in the 1pF capacitor used to make the charge pulse. Its $plus.minus 10%$, and since this is used as a conversion factor, more data will not help this result. There are ways to reduce this by building a larger circuit, but this isn't straight forward and it's been decided is probably not worth it. 
+
+These three calibration graphs should be generated for each stack when needed. (If fine gain is never moved, and on some regular time interval to be decided)
 
 
 
